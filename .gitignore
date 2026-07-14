@@ -2,6 +2,8 @@ bin/
 obj/
 *.user
 *.cache
+*.suo
+.vs/
 .vscode/
 .idea/
 nupkgs/
