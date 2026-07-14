@@ -25,9 +25,18 @@ Blazor WASM runtime.
 For library-specific security details, see
 [FuzzyScorer SECURITY.md](https://github.com/lukaszow/FuzzyScorer/blob/main/SECURITY.md).
 
+## Security Audit Log
+
+| Date | Check | Result |
+|---|---|---|
+| 2026-07-14 | Secrets/credentials scan (full codebase) | **PASS** — no secrets, keys, or credentials found |
+| 2026-07-14 | Vulnerable NuGet packages (`dotnet list package --vulnerable`) | **PASS** — zero vulnerabilities |
+| 2026-07-14 | External network calls | **PASS** — no outbound HTTP; HttpClient scoped to own origin only |
+| 2026-07-14 | Server-side components | **PASS** — pure Blazor WASM, single `Program.cs` entrypoint |
+| 2026-07-14 | .gitignore sensitive exclusions | **PASS** — no patterns for `.env`, `*.pem`, or credential files |
+
 ## General Guidelines
 
-- No secrets, API keys, or credentials are stored in this repository
 - All data processing happens client-side in the browser
 - No server-side components or external network calls are made by the app
 - Input validation is delegated to the FuzzyScorer library
