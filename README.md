@@ -6,6 +6,8 @@ real-time word cloud clustering using Levenshtein distance typo correction.
 
 Targets **.NET 10.0**.
 
+![FuzzyScorer Demo Screenshot](screenshot.png)
+
 ## Run
 
 ```bash
