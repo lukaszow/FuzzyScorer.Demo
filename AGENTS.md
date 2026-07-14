@@ -12,4 +12,3 @@ Blazor WebAssembly demo app for the `FuzzyScorer` NuGet package (Levenshtein-dis
 - Single project — `Program.cs` is the entrypoint. No monorepo structure.
 - `FuzzyScorer` v1.1.0 from NuGet — do not modify library code, it's external.
 - Static assets (Bootstrap) live under `wwwroot/lib/` and are vendored.
-- UI text is in Polish.

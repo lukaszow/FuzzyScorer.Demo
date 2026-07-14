@@ -4,12 +4,12 @@
 
 <div class="demo-header">
     <h1>FuzzyScorer — Live Word Cloud Repair</h1>
-    <p class="demo-subtitle">Klastrowanie literówek przez dystans Levenshteina</p>
+    <p class="demo-subtitle">Clustering typos by Levenshtein distance</p>
 </div>
 
 <div class="demo-container">
     <div class="input-section">
-        <label class="form-label" for="inputText">Tekst źródłowy</label>
+        <label class="form-label" for="inputText">Source text</label>
         <textarea id="inputText"
                   class="form-control"
                   rows="6"
@@ -20,7 +20,7 @@
 
     <div class="slider-section">
         <label class="form-label">
-            Maksymalny dystans edycji: <strong>@maxEditDistance</strong>
+            Max edit distance: <strong>@maxEditDistance</strong>
         </label>
         <input type="range"
                class="form-range"
@@ -31,14 +31,14 @@
                @bind:event="oninput"
                @bind:after="OnSliderChanged" />
         <div class="slider-labels">
-            <span>0 (tylko dokładne)</span>
-            <span>@MaxEditDistanceLimit (bardzo luźne)</span>
+            <span>0 (exact only)</span>
+            <span>@MaxEditDistanceLimit (very loose)</span>
         </div>
     </div>
 
     <div class="split-view">
         <div class="panel panel-left">
-            <h2>Surowe dane</h2>
+            <h2>Raw data</h2>
             <p class="panel-subtitle">WordScorer.GetWordFrequencies</p>
             <div class="word-cloud">
                 @foreach (var word in rawFrequencies)
@@ -53,7 +53,7 @@
         </div>
 
         <div class="panel panel-right">
-            <h2>Przetworzone (sklastrowane)</h2>
+            <h2>Processed (clustered)</h2>
             <p class="panel-subtitle">WordScorer.GroupSimilarWords (maxEditDistance: @maxEditDistance)</p>
             <div class="word-cloud">
                 @foreach (var word in groupedWords)
@@ -75,21 +75,21 @@
         </p>
         @if (errorResult == null || errorResult.Errors.Count == 0)
         {
-            <div class="alert alert-info">Brak wykrytych błędów — wszystkie słowa pasują do swoich klastrów.</div>
+            <div class="alert alert-info">No errors detected — all words match their clusters.</div>
         }
         else
         {
             <div class="errors-stats">
-                <span>Słów oryginalnie: <strong>@errorResult.OriginalSize</strong></span>
-                <span>Słów po kompresji: <strong>@errorResult.CompressedSize</strong></span>
-                <span>Wykryto literówek: <strong>@errorResult.Errors.Count</strong></span>
+                <span>Original words: <strong>@errorResult.OriginalSize</strong></span>
+                <span>After compression: <strong>@errorResult.CompressedSize</strong></span>
+                <span>Typos detected: <strong>@errorResult.Errors.Count</strong></span>
             </div>
             <table class="table table-striped errors-table">
                 <thead>
                     <tr>
-                        <th>Błędny zapis</th>
-                        <th>Liczba wystąpień</th>
-                        <th>Numery linii</th>
+                        <th>Misspelled word</th>
+                        <th>Occurrences</th>
+                        <th>Line numbers</th>
                     </tr>
                 </thead>
                 <tbody>
