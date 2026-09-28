@@ -73,7 +73,11 @@
         <p class="panel-subtitle">
             IFuzzyScorer.ScoreAsync (sensitivity: @(Math.Round(maxEditDistance / (double)MaxEditDistanceLimit, 3)))
         </p>
-        @if (errorResult == null || errorResult.Errors.Count == 0)
+        @if (errorMessage is not null)
+        {
+            <div class="alert alert-warning">@errorMessage</div>
+        }
+        else if (errorResult == null || errorResult.Errors.Count == 0)
         {
             <div class="alert alert-info">No errors detected — all words match their clusters.</div>
         }
@@ -114,6 +118,7 @@
     private global::FuzzyScorer.IFuzzyScorer Scorer { get; set; } = default!;
 
     private const int MaxEditDistanceLimit = 50;
+    private const int MaxInputLength = 1_000_000;
 
     private string InputText { get; set; } = SampleData;
     private int maxEditDistance = 3;
@@ -121,9 +126,12 @@
     private List<global::FuzzyScorer.WordScore> rawFrequencies = [];
     private List<global::FuzzyScorer.WordScore> groupedWords = [];
     private global::FuzzyScorer.FuzzyScorerResult? errorResult;
+    private string? errorMessage;
 
     private double maxRawScore = 1;
     private double maxGroupedScore = 1;
+
+    private CancellationTokenSource? recalcCts;
 
     private const string SampleData =
         """
@@ -135,51 +143,74 @@
         Tiger TIGER TlGER tigerr
         """;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        RecalculateAll();
+        await RecalculateAllAsync();
     }
 
     private async Task OnInputChanged()
     {
-        RecalculateAll();
-        await InvokeAsync(StateHasChanged);
+        await RecalculateAllAsync();
     }
 
     private async Task OnSliderChanged()
     {
-        RecalculateGrouped();
-        await RecalculateErrors();
-        await InvokeAsync(StateHasChanged);
+        await RecalculateAllAsync();
     }
 
-    private void RecalculateAll()
+    private async Task RecalculateAllAsync()
     {
-        RecalculateRaw();
-        RecalculateGrouped();
-        _ = RecalculateErrors();
+        recalcCts?.Cancel();
+        recalcCts?.Dispose();
+        recalcCts = new CancellationTokenSource();
+        var token = recalcCts.Token;
+
+        errorMessage = null;
+
+        if (InputText.Length > MaxInputLength)
+        {
+            errorMessage = $"Input is too long ({InputText.Length:N0} characters). The limit is {MaxInputLength:N0}.";
+            rawFrequencies = [];
+            groupedWords = [];
+            errorResult = null;
+            return;
+        }
+
+        try
+        {
+            RecalculateRaw(token);
+            RecalculateGrouped(token);
+            await RecalculateErrorsAsync(token);
+        }
+        catch (ArgumentException ex)
+        {
+            errorMessage = ex.Message;
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
-    private void RecalculateRaw()
+    private void RecalculateRaw(CancellationToken token)
     {
-        rawFrequencies = global::FuzzyScorer.WordScorer.GetWordFrequencies(InputText);
+        rawFrequencies = global::FuzzyScorer.WordScorer.GetWordFrequencies(InputText, token);
         maxRawScore = rawFrequencies.Count > 0
             ? rawFrequencies.Max(w => w.Score)
             : 1;
     }
 
-    private void RecalculateGrouped()
+    private void RecalculateGrouped(CancellationToken token)
     {
-        groupedWords = global::FuzzyScorer.WordScorer.GroupSimilarWords(InputText, maxEditDistance);
+        groupedWords = global::FuzzyScorer.WordScorer.GroupSimilarWords(InputText, maxEditDistance, token);
         maxGroupedScore = groupedWords.Count > 0
             ? groupedWords.Max(w => w.Score)
             : 1;
     }
 
-    private async Task RecalculateErrors()
+    private async Task RecalculateErrorsAsync(CancellationToken token)
     {
         var sensitivity = maxEditDistance / (double)MaxEditDistanceLimit;
-        errorResult = await Scorer.ScoreAsync(InputText, sensitivity, CancellationToken.None);
+        errorResult = await Scorer.ScoreAsync(InputText, sensitivity, token);
     }
 
     private static double WordSize(int score, double maxScore)

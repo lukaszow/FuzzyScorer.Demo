@@ -7,3 +7,12 @@ obj/
 .vscode/
 .idea/
 nupkgs/
+
+# OS metadata
+.DS_Store
+**/.DS_Store
+
+# Secrets / credentials
+.env
+*.pem
+*.pfx

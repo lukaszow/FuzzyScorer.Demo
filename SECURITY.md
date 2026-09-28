@@ -9,7 +9,7 @@ FuzzyScorer.Demo is a Blazor WebAssembly demo application for the
 
 If you discover a security vulnerability, please **do NOT open a public GitHub issue**.
 
-Instead, email the maintainer directly with:
+Instead, email the maintainer directly at **lukaszow@users.noreply.github.com** with:
 - Vulnerability description
 - Steps to reproduce
 - Severity assessment (Critical / High / Medium / Low)
@@ -23,20 +23,23 @@ considerations are inherited from the underlying FuzzyScorer library and the
 Blazor WASM runtime.
 
 For library-specific security details, see
-[FuzzyScorer SECURITY.md](https://github.com/lukaszow/FuzzyScorer/blob/main/SECURITY.md).
+[FuzzyScorer SECURITY.md](https://github.com/lukaszow/FuzzyScorer/blob/master/SECURITY.md).
 
 ## Security Audit Log
 
 | Date | Check | Result |
 |---|---|---|
-| 2026-07-14 | Secrets/credentials scan (full codebase) | **PASS** — no secrets, keys, or credentials found |
-| 2026-07-14 | Vulnerable NuGet packages (`dotnet list package --vulnerable`) | **PASS** — zero vulnerabilities |
-| 2026-07-14 | External network calls | **PASS** — no outbound HTTP; HttpClient scoped to own origin only |
-| 2026-07-14 | Server-side components | **PASS** — pure Blazor WASM, single `Program.cs` entrypoint |
-| 2026-07-14 | .gitignore sensitive exclusions | **PASS** — no patterns for `.env`, `*.pem`, or credential files |
+| 2026-09-28 | Secrets/credentials scan (full codebase + history) | **PASS** — no secrets, keys, or credentials found |
+| 2026-09-28 | Vulnerable NuGet packages (`dotnet list package --vulnerable --include-transitive`) | **PASS** — zero vulnerabilities |
+| 2026-09-28 | External network calls | **PASS** — no outbound HTTP; `HttpClient` scoped to own origin only |
+| 2026-09-28 | Server-side components | **PASS** — pure Blazor WASM, single `Program.cs` entrypoint |
+| 2026-09-28 | Ignore rules for sensitive files | **PASS** — `.gitignore` covers `.env`, `*.pem`, `*.pfx`, and `.DS_Store` |
+| 2026-09-28 | Tracked OS/build artifacts | **PASS** — `.DS_Store`, `bin/`, and `obj/` purged from history |
 
 ## General Guidelines
 
 - All data processing happens client-side in the browser
 - No server-side components or external network calls are made by the app
 - Input validation is delegated to the FuzzyScorer library
+- The app ships as static assets; security headers (e.g. CSP) must be configured
+  at the hosting layer, outside this repository
