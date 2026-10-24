@@ -52,9 +52,9 @@
                 @foreach (var word in rawFrequencies)
                 {
                     <span class="word-tag"
-                          style="font-size: @WordSize(word.Score, maxRawScore)px; opacity: @WordOpacity(word.Score, maxRawScore)">
+                          style="font-size: @WordSize(word.Count, maxRawScore)px; opacity: @WordOpacity(word.Count, maxRawScore)">
                         @word.Text
-                        <small>(@word.Score)</small>
+                        <small>(@word.Count)</small>
                     </span>
                 }
             </div>
@@ -67,9 +67,9 @@
                 @foreach (var word in groupedWords)
                 {
                     <span class="word-tag grouped"
-                          style="font-size: @WordSize(word.Score, maxGroupedScore)px; opacity: @WordOpacity(word.Score, maxGroupedScore)">
+                          style="font-size: @WordSize(word.Count, maxGroupedScore)px; opacity: @WordOpacity(word.Count, maxGroupedScore)">
                         @word.Text
-                        <small>(@word.Score)</small>
+                        <small>(@word.Count)</small>
                     </span>
                 }
             </div>
@@ -92,8 +92,8 @@
         else
         {
             <div class="errors-stats">
-                <span>Original words: <strong>@errorResult.OriginalSize</strong></span>
-                <span>After compression: <strong>@errorResult.CompressedSize</strong></span>
+                <span>Original words: <strong>@errorResult.TotalWords</strong></span>
+                <span>After compression: <strong>@errorResult.UniqueGroups</strong></span>
                 <span>Typos detected: <strong>@errorResult.Errors.Count</strong></span>
             </div>
             <table class="table table-striped errors-table">
@@ -109,9 +109,9 @@
                     {
                         <tr>
                             <td>
-                                <span class="error-text">@error.ErrorText</span>
+                                <span class="error-text">@error.Text</span>
                             </td>
-                            <td>@error.RepetitionCount</td>
+                            <td>@error.Occurrences</td>
                             <td>@string.Join(", ", error.LineNumbers)</td>
                         </tr>
                     }
@@ -125,8 +125,8 @@
     [Inject]
     private global::FuzzyScorer.IFuzzyScorer Scorer { get; set; } = default!;
 
-    private const int MaxEditDistanceLimit = 50;
-    private const int MaxInputLength = 1_000_000;
+    private const int MaxEditDistanceLimit = global::FuzzyScorer.WordScorer.MaxEditDistanceLimit;
+    private const int MaxInputLength = global::FuzzyScorer.WordScorer.MaxInputLength;
 
     private static readonly string LibraryVersion = ResolveLibraryVersion();
     private static readonly string NuGetUrl =
@@ -135,13 +135,13 @@
     private string InputText { get; set; } = SampleData;
     private int maxEditDistance = 3;
 
-    private List<global::FuzzyScorer.WordScore> rawFrequencies = [];
-    private List<global::FuzzyScorer.WordScore> groupedWords = [];
+    private IReadOnlyList<global::FuzzyScorer.WordScore> rawFrequencies = [];
+    private IReadOnlyList<global::FuzzyScorer.WordScore> groupedWords = [];
     private global::FuzzyScorer.FuzzyScorerResult? errorResult;
     private string? errorMessage;
 
-    private double maxRawScore = 1;
-    private double maxGroupedScore = 1;
+    private int maxRawScore = 1;
+    private int maxGroupedScore = 1;
 
     private CancellationTokenSource? recalcCts;
 
@@ -207,7 +207,7 @@
     {
         rawFrequencies = global::FuzzyScorer.WordScorer.GetWordFrequencies(InputText, token);
         maxRawScore = rawFrequencies.Count > 0
-            ? rawFrequencies.Max(w => w.Score)
+            ? rawFrequencies.Max(w => w.Count)
             : 1;
     }
 
@@ -215,7 +215,7 @@
     {
         groupedWords = global::FuzzyScorer.WordScorer.GroupSimilarWords(InputText, maxEditDistance, token);
         maxGroupedScore = groupedWords.Count > 0
-            ? groupedWords.Max(w => w.Score)
+            ? groupedWords.Max(w => w.Count)
             : 1;
     }
 
@@ -225,7 +225,7 @@
         errorResult = await Scorer.ScoreAsync(InputText, sensitivity, token);
     }
 
-    private static double WordSize(int score, double maxScore)
+    private static double WordSize(int score, int maxScore)
     {
         const double minFontSize = 14;
         const double maxFontSize = 48;
@@ -233,7 +233,7 @@
         return minFontSize + (score / maxScore) * (maxFontSize - minFontSize);
     }
 
-    private static double WordOpacity(int score, double maxScore)
+    private static double WordOpacity(int score, int maxScore)
     {
         const double minOpacity = 0.45;
         const double maxOpacity = 1.0;
