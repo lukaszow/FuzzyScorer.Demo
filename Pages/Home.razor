@@ -1,10 +1,18 @@
 ﻿@page "/"
+@using System.Reflection
 
 <PageTitle>FuzzyScorer — Live Word Cloud Repair</PageTitle>
 
 <div class="demo-header">
     <h1>FuzzyScorer — Live Word Cloud Repair</h1>
-    <p class="demo-subtitle">Clustering typos by Levenshtein distance</p>
+    <p class="demo-subtitle">
+        Clustering typos by Levenshtein distance —
+        powered by
+        <a class="package-link"
+           href="@NuGetUrl"
+           target="_blank"
+           rel="noopener noreferrer">FuzzyScorer @LibraryVersion</a>
+    </p>
 </div>
 
 <div class="demo-container">
@@ -120,6 +128,10 @@
     private const int MaxEditDistanceLimit = 50;
     private const int MaxInputLength = 1_000_000;
 
+    private static readonly string LibraryVersion = ResolveLibraryVersion();
+    private static readonly string NuGetUrl =
+        $"https://www.nuget.org/packages/FuzzyScorer/{LibraryVersion}";
+
     private string InputText { get; set; } = SampleData;
     private int maxEditDistance = 3;
 
@@ -227,5 +239,23 @@
         const double maxOpacity = 1.0;
         if (maxScore <= 0) return minOpacity;
         return minOpacity + (score / maxScore) * (maxOpacity - minOpacity);
+    }
+
+    private static string ResolveLibraryVersion()
+    {
+        var assembly = typeof(global::FuzzyScorer.WordScorer).Assembly;
+
+        var informational = assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        if (!string.IsNullOrEmpty(informational))
+        {
+            // Strip the "+<commit hash>" suffix added by SourceLink/deterministic builds.
+            var plus = informational.IndexOf('+');
+            return plus > 0 ? informational[..plus] : informational;
+        }
+
+        return assembly.GetName().Version?.ToString(3) ?? "unknown";
     }
 }
