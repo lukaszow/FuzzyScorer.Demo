@@ -5,144 +5,342 @@
 
 <PageTitle>FuzzyScorer — Live Word Cloud Repair</PageTitle>
 
-<div class="demo-header">
-    <h1>FuzzyScorer — Live Word Cloud Repair</h1>
-    <p class="demo-subtitle">
-        Clustering typos by Levenshtein distance —
-        powered by
-        <a class="package-link"
+<header class="demo-header">
+    <div class="hero-badges">
+        <a class="pill pill-link"
            href="@NuGetUrl"
            target="_blank"
            rel="noopener noreferrer">FuzzyScorer @LibraryVersion</a>
+        <span class="pill">.NET 10</span>
+        <span class="pill">MIT</span>
+    </div>
+    <h1>FuzzyScorer <span class="hero-accent">Live Word Cloud Repair</span></h1>
+    <p class="demo-subtitle">
+        Count words, merge typos with Levenshtein distance, and watch which spellings
+        collapse into a single cluster — live, while you type.
     </p>
-</div>
+    <ol class="pipeline" aria-label="FuzzyScorer calls used by this demo">
+        <li class="pipeline-step">
+            <code>GetWordFrequencies</code>
+            <span>exact counts</span>
+        </li>
+        <li class="pipeline-step">
+            <code>GroupSimilarWords</code>
+            <span>clusters</span>
+        </li>
+        <li class="pipeline-step">
+            <code>ScoreAsync</code>
+            <span>suggestions</span>
+        </li>
+    </ol>
+</header>
 
 <div class="demo-container">
-    <div class="input-section">
-        <label class="form-label" for="inputText">Source text</label>
-        <textarea id="inputText"
-                  class="form-control"
-                  rows="6"
-                  maxlength="@MaxInputLength"
-                  aria-describedby="inputLimits"
-                  @bind="InputText"
-                  @bind:event="oninput"
-                  @bind:after="OnInputChanged"></textarea>
-        <div id="inputLimits" class="form-text">
-            @InputText.Length.ToString("N0", CultureInfo.InvariantCulture) /
-            @MaxInputLength.ToString("N0", CultureInfo.InvariantCulture) characters
-            · library limits: @MaxWordsPerText.ToString("N0", CultureInfo.InvariantCulture) words,
-            @MaxWordLength characters per word
-        </div>
-    </div>
-
-    <div class="slider-section">
-        <label class="form-label" for="maxEditDistance">
-            Max edit distance: <strong>@maxEditDistance</strong>
-        </label>
-        <input id="maxEditDistance"
-               type="range"
-               class="form-range"
-               min="0"
-               max="@MaxInteractiveEditDistance"
-               step="1"
-               aria-valuetext="@($"{maxEditDistance} of {MaxInteractiveEditDistance}")"
-               @bind="maxEditDistance"
-               @bind:event="oninput"
-               @bind:after="OnSliderChanged" />
-        <div class="slider-labels">
-            <span>0 (exact only)</span>
-            <span>@MaxInteractiveEditDistance (very loose)</span>
-        </div>
-        <div class="form-text">
-            The library supports 0–@MaxEditDistanceLimit; this demo caps the slider at
-            @MaxInteractiveEditDistance to keep live analysis responsive.
-        </div>
-    </div>
-
-    <div class="split-view">
-        <div class="panel panel-left">
-            <h2>Raw data</h2>
-            <p class="panel-subtitle">WordScorer.GetWordFrequencies</p>
-            <div class="word-cloud">
-                @foreach (var word in rawFrequencies)
-                {
-                    <span class="word-tag"
-                          style="@WordStyle(word.Count, maxRawScore)">
-                        @word.Text
-                        <small>(@word.Count)</small>
-                    </span>
-                }
+    <section class="controls" aria-label="Input and settings">
+        <div class="input-section">
+            <div class="label-row">
+                <label class="form-label" for="inputText">Source text</label>
+                <span class="char-counter @(IsNearLimit ? "is-near" : "")">
+                    @FormatNumber(InputText.Length) / @FormatNumber(MaxInputLength) chars
+                </span>
+            </div>
+            <textarea id="inputText"
+                      class="form-control"
+                      rows="6"
+                      maxlength="@MaxInputLength"
+                      aria-describedby="inputLimits"
+                      @bind="InputText"
+                      @bind:event="oninput"
+                      @bind:after="OnInputChanged"></textarea>
+            <div id="inputLimits" class="form-text">
+                Library limits: @FormatNumber(MaxWordsPerText) words, @MaxWordLength characters per word.
+                <button type="button" class="link-button" @onclick="ResetSample">Reset sample</button>
             </div>
         </div>
 
-        <div class="panel panel-right">
-            <h2>Processed (clustered)</h2>
-            <p class="panel-subtitle">WordScorer.GroupSimilarWords (maxEditDistance: @maxEditDistance)</p>
-            <div class="word-cloud">
-                @foreach (var word in groupedWords)
+        <div class="slider-section">
+            <div class="label-row">
+                <label class="form-label" for="maxEditDistance">
+                    Max edit distance: <strong>@maxEditDistance</strong>
+                </label>
+                <span class="sensitivity"
+                      title="ScoreAsync sensitivity = edit distance ÷ 50">
+                    sensitivity @Sensitivity.ToString("0.###", CultureInfo.InvariantCulture)
+                </span>
+            </div>
+            <input id="maxEditDistance"
+                   type="range"
+                   class="form-range"
+                   min="0"
+                   max="@MaxInteractiveEditDistance"
+                   step="1"
+                   aria-valuetext="@($"{maxEditDistance} of {MaxInteractiveEditDistance}")"
+                   @bind="maxEditDistance"
+                   @bind:event="oninput"
+                   @bind:after="OnSliderChanged" />
+            <div class="slider-labels">
+                <span>0 · exact only</span>
+                <span>@MaxInteractiveEditDistance · very loose</span>
+            </div>
+            <div class="preset-group" role="group" aria-label="Edit distance presets">
+                @foreach (var preset in Presets)
                 {
-                    <span class="word-tag grouped"
-                          style="@WordStyle(word.Count, maxGroupedScore)">
-                        @word.Text
-                        <small>(@word.Count)</small>
-                    </span>
+                    <button type="button"
+                            class="preset @(maxEditDistance == preset.Distance ? "is-active" : "")"
+                            aria-pressed="@(maxEditDistance == preset.Distance ? "true" : "false")"
+                            @onclick="() => SetDistanceAsync(preset.Distance)">
+                        @preset.Label
+                    </button>
                 }
             </div>
+            <p class="form-text">
+                The library supports 0–@MaxEditDistanceLimit; this demo caps the slider at
+                @MaxInteractiveEditDistance to keep live analysis responsive. Higher values
+                merge unrelated short words too — the algorithm is structural, not semantic.
+            </p>
         </div>
+    </section>
+
+    <section class="kpi-row" aria-label="Analysis summary">
+        <div class="kpi">
+            <span class="kpi-label">Words</span>
+            <span class="kpi-value">@(errorResult is null ? "—" : FormatNumber(errorResult.TotalWords))</span>
+            <span class="kpi-hint">after normalization</span>
+        </div>
+        <div class="kpi">
+            <span class="kpi-label">Distinct spellings</span>
+            <span class="kpi-value">@FormatNumber(rawFrequencies.Count)</span>
+            <span class="kpi-hint">case-insensitive</span>
+        </div>
+        <div class="kpi">
+            <span class="kpi-label">Clusters</span>
+            <span class="kpi-value">@(errorResult is null ? "—" : FormatNumber(errorResult.UniqueGroups))</span>
+            <div class="compression-bar" aria-hidden="true">
+                <span style="@BarStyle"></span>
+            </div>
+            <span class="kpi-hint">@CompressionHint</span>
+        </div>
+        <div class="kpi">
+            <span class="kpi-label">Typo variants</span>
+            <span class="kpi-value">@(errorResult is null ? "—" : FormatNumber(errorResult.Errors.Count))</span>
+            <span class="kpi-hint">spellings not chosen as leader</span>
+        </div>
+    </section>
+
+    <div class="legend" aria-label="Legend">
+        <span class="legend-item">
+            <span class="legend-swatches" aria-hidden="true">
+                @foreach (var hue in LegendHues)
+                {
+                    <span class="legend-swatch" style="@HueStyle(hue)"></span>
+                }
+            </span>
+            color = cluster
+        </span>
+        <span class="legend-item"><span class="legend-typo" aria-hidden="true">aple</span> dashed underline = typo</span>
+        <span class="legend-item">click a word to isolate its cluster</span>
+        @if (selectedCluster is not null)
+        {
+            <button type="button" class="show-all" @onclick="ClearSelection">Show all clusters</button>
+        }
     </div>
 
-    <div class="errors-section" aria-live="polite" aria-busy="@(isCalculating ? "true" : "false")">
-        <h2>Detected Errors Log</h2>
-        <p class="panel-subtitle">
-            IFuzzyScorer.ScoreAsync (sensitivity: @Sensitivity.ToString("0.###", CultureInfo.InvariantCulture))
+    <section class="split-view @(isCalculating ? "is-calculating" : "")" aria-label="Word clouds">
+        <article class="panel panel-left">
+            <header class="panel-header">
+                <div>
+                    <h2>Raw data</h2>
+                    <p class="panel-subtitle">
+                        <code>WordScorer.GetWordFrequencies</code> · distinct spellings
+                    </p>
+                </div>
+                <span class="panel-count">@FormatNumber(rawFrequencies.Count)</span>
+            </header>
+            @if (rawFrequencies.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>No words yet</strong>
+                    <span>Paste some text above or reset the sample.</span>
+                </div>
+            }
+            else
+            {
+                <div class="word-cloud @(selectedCluster is not null ? "has-selection" : "")">
+                    @foreach (var word in rawFrequencies)
+                    {
+                        var cluster = FindCluster(word.Text);
+                        var isTypo = IsTypo(word.Text, cluster);
+                        var isSelected = IsSelected(cluster);
+                        <button type="button"
+                                @key="word.Text"
+                                class="word-tag @(cluster is null ? "no-cluster" : "") @(isTypo ? "is-typo" : "is-leader") @(isSelected ? "is-selected" : "")"
+                                style="@TagStyle(word.Count, maxRawScore, cluster)"
+                                title="@RawTooltip(word.Text, cluster)"
+                                aria-pressed="@(cluster is null ? null : (isSelected ? "true" : "false"))"
+                                @onclick="() => ToggleCluster(cluster)">
+                            <span class="tag-word">@word.Text</span>
+                            <small>(@word.Count)</small>
+                            @if (isTypo && cluster is not null)
+                            {
+                                <span class="visually-hidden">— typo, suggested @cluster.Representative</span>
+                            }
+                        </button>
+                    }
+                </div>
+            }
+        </article>
+
+        <article class="panel panel-right">
+            <header class="panel-header">
+                <div>
+                    <h2>Processed (clustered)</h2>
+                    <p class="panel-subtitle">
+                        <code>WordScorer.GroupSimilarWords</code> · maxEditDistance: @maxEditDistance
+                        · leader = first occurrence
+                    </p>
+                </div>
+                <span class="panel-count">@FormatNumber(groupedWords.Count)</span>
+            </header>
+            @if (groupedWords.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>Nothing to cluster yet</strong>
+                    <span>Clusters appear as soon as there are words to merge.</span>
+                </div>
+            }
+            else
+            {
+                <div class="word-cloud @(selectedCluster is not null ? "has-selection" : "")">
+                    @foreach (var word in groupedWords)
+                    {
+                        var cluster = FindCluster(word.Text);
+                        var isSelected = IsSelected(cluster);
+                        <button type="button"
+                                @key="word.Text"
+                                class="word-tag grouped is-leader @(cluster is null ? "no-cluster" : "") @(isSelected ? "is-selected" : "")"
+                                style="@TagStyle(word.Count, maxGroupedScore, cluster)"
+                                title="@GroupedTooltip(cluster)"
+                                aria-pressed="@(cluster is null ? null : (isSelected ? "true" : "false"))"
+                                @onclick="() => ToggleCluster(cluster)">
+                            <span class="tag-word">@word.Text</span>
+                            <small>(@word.Count)</small>
+                            @if (cluster is not null && cluster.Forms > 1)
+                            {
+                                <small class="forms">· @cluster.Forms forms</small>
+                            }
+                        </button>
+                    }
+                </div>
+            }
+        </article>
+    </section>
+
+    <section class="errors-section"
+             aria-labelledby="errorsTitle"
+             aria-busy="@(isCalculating ? "true" : "false")">
+        <header class="section-header">
+            <div>
+                <h2 id="errorsTitle">Detected Errors Log</h2>
+                <p class="panel-subtitle">
+                    <code>IFuzzyScorer.ScoreAsync</code> · sensitivity
+                    @Sensitivity.ToString("0.###", CultureInfo.InvariantCulture)
+                    · suggestion = most frequent variant
+                </p>
+            </div>
             @if (isCalculating)
             {
-                <span class="calculating">— calculating…</span>
+                <span class="calculating" aria-hidden="true">calculating…</span>
             }
-        </p>
+        </header>
+
+        <p class="visually-hidden" role="status">@StatusText</p>
+
         @if (errorMessage is not null)
         {
-            <div class="alert alert-warning" role="alert">@errorMessage</div>
+            <div class="notice notice-warning" role="alert">@errorMessage</div>
         }
         else if (errorResult is null)
         {
-            <div class="alert alert-info" role="status">Analyzing…</div>
+            <div class="notice">Analyzing…</div>
         }
         else if (errorResult.Errors.Count == 0)
         {
-            <div class="alert alert-info" role="status">No errors detected — all words match their clusters.</div>
+            <div class="notice notice-success">
+                No errors detected — every spelling belongs to a single cluster.
+            </div>
         }
         else
         {
-            <div class="errors-stats">
-                <span>Original words: <strong>@errorResult.TotalWords</strong></span>
-                <span>After compression: <strong>@errorResult.UniqueGroups</strong></span>
-                <span>Typos detected: <strong>@errorResult.Errors.Count</strong></span>
-            </div>
-            <table class="table table-striped errors-table">
-                <thead>
-                    <tr>
-                        <th>Misspelled word</th>
-                        <th>Occurrences</th>
-                        <th>Line numbers</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var error in errorResult.Errors)
-                    {
+            <div class="table-wrap">
+                <table class="error-table">
+                    <thead>
                         <tr>
-                            <td>
-                                <span class="error-text">@error.Text</span>
-                            </td>
-                            <td>@error.Occurrences</td>
-                            <td>@string.Join(", ", error.LineNumbers)</td>
+                            <th scope="col">Misspelled</th>
+                            <th scope="col">Suggestion</th>
+                            <th scope="col" class="num">Distance</th>
+                            <th scope="col" class="num">Occurrences</th>
+                            <th scope="col">Lines</th>
+                            <th scope="col" class="spacer" aria-hidden="true"></th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in errorRows)
+                        {
+                            <tr class="@(selectedCluster is not null && selectedCluster == row.ClusterIndex ? "is-selected" : "")">
+                                <td data-label="Misspelled">
+                                    <button type="button"
+                                            class="error-chip @(row.Hue is null ? "no-cluster" : "")"
+                                            style="@(row.Hue is int hue ? HueStyle(hue) : null)"
+                                            aria-pressed="@(row.ClusterIndex is null ? null : (selectedCluster == row.ClusterIndex ? "true" : "false"))"
+                                            title="@(row.ClusterIndex is null ? null : "Isolate this cluster")"
+                                            @onclick="() => ToggleCluster(row.ClusterIndex)">
+                                        @row.Text
+                                    </button>
+                                </td>
+                                <td data-label="Suggestion">
+                                    <span class="suggestion-cell">
+                                        @if (row.SuggestedText is null)
+                                        {
+                                            <span class="muted">—</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="suggestion-chip">@row.SuggestedText</span>
+                                        }
+                                        @if (!row.IsCertain)
+                                        {
+                                            <span class="badge-ambiguous"
+                                                  title="Several variants share the top frequency, so the suggestion is not certain">
+                                                ambiguous
+                                            </span>
+                                        }
+                                    </span>
+                                </td>
+                                <td data-label="Distance" class="num">@(row.Distance >= 0 ? $"d={row.Distance}" : "—")</td>
+                                <td data-label="Occurrences" class="num">@FormatNumber(row.Occurrences)</td>
+                                <td data-label="Lines">
+                                    <span class="line-list">
+                                        @foreach (var line in row.Lines.Take(LinePreviewLimit))
+                                        {
+                                            <span class="line-pill">@line</span>
+                                        }
+                                        @if (row.Lines.Count > LinePreviewLimit)
+                                        {
+                                            <span class="line-pill more"
+                                                  title="@string.Join(", ", row.Lines)">
+                                                +@(row.Lines.Count - LinePreviewLimit)
+                                            </span>
+                                        }
+                                    </span>
+                                </td>
+                                <td class="spacer" aria-hidden="true"></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         }
-    </div>
+    </section>
 </div>
 
 @code {
@@ -155,18 +353,34 @@
     private const int MaxWordsPerText = global::FuzzyScorer.WordScorer.MaxWordsPerText;
     private const int MaxWordLength = global::FuzzyScorer.WordScorer.MaxWordLength;
     private const int DebounceMilliseconds = 300;
+    private const int LinePreviewLimit = 6;
+
+    private static readonly int[] GroupHues = [217, 27, 160, 0, 262, 190, 330, 85, 20, 245];
+    private static readonly int[] LegendHues = GroupHues.Take(5).ToArray();
+    private static readonly (int Distance, string Label)[] Presets =
+    [
+        (0, "Exact"),
+        (1, "Typical typos"),
+        (3, "Loose"),
+        (MaxInteractiveEditDistance, "Max"),
+    ];
 
     private static readonly string LibraryVersion = ResolveLibraryVersion();
     private static readonly string NuGetUrl =
         $"https://www.nuget.org/packages/FuzzyScorer/{LibraryVersion}";
 
     private string InputText { get; set; } = SampleData;
-    private int maxEditDistance = 3;
+    private int maxEditDistance = 1;
 
     private IReadOnlyList<global::FuzzyScorer.WordScore> rawFrequencies = [];
     private IReadOnlyList<global::FuzzyScorer.WordScore> groupedWords = [];
     private global::FuzzyScorer.FuzzyScorerResult? errorResult;
     private string? errorMessage;
+
+    private List<ClusterInfo> clusters = [];
+    private Dictionary<string, ClusterInfo> clusterByMember = new(StringComparer.OrdinalIgnoreCase);
+    private List<ErrorRow> errorRows = [];
+    private int? selectedCluster;
 
     private int maxRawScore = 1;
     private int maxGroupedScore = 1;
@@ -178,20 +392,65 @@
     private const string SampleData =
         """
         Apple aple Apple apple appple
-        Banana bananna bannana Banana cherry
-        Excellent Excelent excelent Excelleent very good
-        Good god goood excellent
-        Happy hapy hapiness happiness happy
-        Tiger TIGER TlGER tigerr
+        Banana Banana bananna bannana cherry
+        Excellent Excellent Excelent Excelleent very good
+        good good god goood excellent
+        happy happy hapy hapiness happiness
+        Tiger Tiger TIGER tigerr
         """;
 
     private double Sensitivity => maxEditDistance / (double)MaxEditDistanceLimit;
+
+    private bool IsNearLimit => InputText.Length > MaxInputLength * 0.9;
+
+    private int DistinctSpellings => rawFrequencies.Count;
+
+    private double CompressionBarWidth => DistinctSpellings == 0 || errorResult is null
+        ? 0
+        : Math.Clamp(errorResult.UniqueGroups / (double)DistinctSpellings * 100, 0, 100);
+
+    private int CompressionPercent => (int)Math.Round(100 - CompressionBarWidth);
+
+    private string CompressionHint => errorResult is null
+        ? "waiting for analysis"
+        : CompressionPercent > 0
+            ? $"−{CompressionPercent}% vocabulary"
+            : "no compression";
+
+    private string BarStyle => FormattableString.Invariant($"width:{CompressionBarWidth:0.#}%");
+
+    private string StatusText => errorMessage is not null
+        ? "Analysis failed."
+        : errorResult is null
+            ? "Analyzing input."
+            : errorResult.Errors.Count == 0
+                ? "Analysis complete. No typo variants detected."
+                : $"Analysis complete. {errorResult.Errors.Count} typo {Plural(errorResult.Errors.Count, "variant", "variants")} detected.";
 
     protected override Task OnInitializedAsync() => RecalculateAllAsync(debounce: false);
 
     private Task OnInputChanged() => RecalculateAllAsync();
 
     private Task OnSliderChanged() => RecalculateAllAsync();
+
+    private async Task SetDistanceAsync(int distance)
+    {
+        if (maxEditDistance == distance)
+        {
+            return;
+        }
+
+        maxEditDistance = distance;
+        await RecalculateAllAsync(debounce: false);
+    }
+
+    private async Task ResetSample()
+    {
+        InputText = SampleData;
+        maxEditDistance = 1;
+        selectedCluster = null;
+        await RecalculateAllAsync(debounce: false);
+    }
 
     private async Task RecalculateAllAsync(bool debounce = true)
     {
@@ -235,6 +494,7 @@
             if (generation == recalcGeneration)
             {
                 errorResult = result;
+                RecalculateClusters(result);
             }
         }
         catch (OperationCanceledException)
@@ -274,19 +534,185 @@
             : 1;
     }
 
-    private void ClearResults()
+    /// <summary>
+    /// Builds the cluster color map from <see cref="global::FuzzyScorer.FuzzyScorerResult.WordGroups"/>
+    /// and precomputes the error table rows (suggestion + edit distance) so rendering stays cheap.
+    /// </summary>
+    private void RecalculateClusters(global::FuzzyScorer.FuzzyScorerResult result)
     {
-        rawFrequencies = [];
-        groupedWords = [];
-        maxRawScore = 1;
-        maxGroupedScore = 1;
-        errorResult = null;
+        clusters = [];
+        clusterByMember = new Dictionary<string, ClusterInfo>(StringComparer.OrdinalIgnoreCase);
+
+        // Assign hues by cluster size so the largest clusters get the most distinct colors.
+        var huesByRepresentative = result.WordGroups
+            .OrderByDescending(group => group.Count)
+            .ThenBy(group => group.Representative, StringComparer.OrdinalIgnoreCase)
+            .Select((group, rank) => (group.Representative, Hue: GroupHues[rank % GroupHues.Length]))
+            .ToDictionary(entry => entry.Representative, entry => entry.Hue, StringComparer.OrdinalIgnoreCase);
+
+        var index = 0;
+
+        foreach (var group in result.WordGroups)
+        {
+            var hue = huesByRepresentative[group.Representative];
+            var distances = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var member in group.Members)
+            {
+                distances[member] = EditDistance(member, group.Representative, maxEditDistance);
+            }
+
+            var info = new ClusterInfo(
+                index++,
+                hue,
+                group.Representative,
+                group.Members.ToArray(),
+                group.Count,
+                distances);
+
+            clusters.Add(info);
+            clusterByMember[group.Representative] = info;
+
+            foreach (var member in group.Members)
+            {
+                clusterByMember[member] = info;
+            }
+        }
+
+        errorRows = BuildErrorRows(result);
+
+        if (selectedCluster is int selected && (selected < 0 || selected >= clusters.Count))
+        {
+            selectedCluster = null;
+        }
+    }
+
+    private List<ErrorRow> BuildErrorRows(global::FuzzyScorer.FuzzyScorerResult result)
+    {
+        var rows = new List<ErrorRow>(result.Errors.Count);
+
+        foreach (var error in result.Errors)
+        {
+            var cluster = FindCluster(error.Text);
+            var suggested = error.SuggestedText;
+            var distance = suggested is null
+                ? -1
+                : EditDistance(error.Text, suggested, maxEditDistance);
+
+            rows.Add(new ErrorRow(
+                error.Text,
+                suggested,
+                distance,
+                error.IsCertain,
+                error.Occurrences,
+                error.LineNumbers.ToArray(),
+                cluster?.Index,
+                cluster?.Hue));
+        }
+
+        return rows;
+    }
+
+    private ClusterInfo? FindCluster(string text) =>
+        clusterByMember.TryGetValue(text, out var cluster) ? cluster : null;
+
+    private static bool IsTypo(string text, ClusterInfo? cluster) =>
+        cluster is not null &&
+        !string.Equals(text, cluster.Representative, StringComparison.OrdinalIgnoreCase);
+
+    private bool IsSelected(ClusterInfo? cluster) =>
+        cluster is not null && selectedCluster == cluster.Index;
+
+    private void ToggleCluster(ClusterInfo? cluster)
+    {
+        if (cluster is not null)
+        {
+            ToggleCluster(cluster.Index);
+        }
+    }
+
+    private void ToggleCluster(int? index)
+    {
+        if (index is null)
+        {
+            return;
+        }
+
+        selectedCluster = selectedCluster == index ? null : index;
+    }
+
+    private void ClearSelection() => selectedCluster = null;
+
+    private static string TagStyle(int score, int maxScore, ClusterInfo? cluster)
+    {
+        var size = WordSize(score, maxScore);
+        var opacity = WordOpacity(score, maxScore);
+        var hue = cluster is null ? string.Empty : $" --group-hue:{cluster.Hue};";
+
+        return FormattableString.Invariant(
+            $"font-size:{size:0.#}px; --word-opacity:{opacity:0.###};{hue}");
+    }
+
+    private static string HueStyle(int hue) =>
+        FormattableString.Invariant($"--group-hue:{hue}");
+
+    private static string? RawTooltip(string text, ClusterInfo? cluster)
+    {
+        if (cluster is null)
+        {
+            return null;
+        }
+
+        if (!string.Equals(text, cluster.Representative, StringComparison.OrdinalIgnoreCase))
+        {
+            var distance = cluster.DistanceByMember.TryGetValue(text, out var value) ? value : -1;
+            return distance >= 0
+                ? $"{text} → {cluster.Representative} (edit distance {distance})"
+                : $"{text} → {cluster.Representative}";
+        }
+
+        return $"{text} — cluster leader · {cluster.Forms} {Plural(cluster.Forms, "form", "forms")} " +
+               $"· {cluster.Count} {Plural(cluster.Count, "occurrence", "occurrences")}";
+    }
+
+    private static string? GroupedTooltip(ClusterInfo? cluster)
+    {
+        if (cluster is null)
+        {
+            return null;
+        }
+
+        var members = cluster.Members.Count <= 12
+            ? string.Join(", ", cluster.Members)
+            : string.Join(", ", cluster.Members.Take(12)) + ", …";
+
+        return $"{cluster.Representative} — {cluster.Forms} distinct " +
+               $"{Plural(cluster.Forms, "form", "forms")} ({members}) · " +
+               $"{cluster.Count} {Plural(cluster.Count, "occurrence", "occurrences")}";
+    }
+
+    /// <summary>
+    /// Finds the Levenshtein distance using the library's public
+    /// <see cref="global::FuzzyScorer.WordScorer.AreWordsSimilar"/> predicate, so the demo
+    /// never reimplements the comparison. Returns -1 when nothing matches within the limit.
+    /// </summary>
+    private static int EditDistance(string word, string candidate, int maxDistance)
+    {
+        for (var distance = 0; distance <= maxDistance; distance++)
+        {
+            if (global::FuzzyScorer.WordScorer.AreWordsSimilar(word, candidate, distance))
+            {
+                return distance;
+            }
+        }
+
+        return -1;
     }
 
     private static double WordSize(int score, int maxScore)
     {
         const double minFontSize = 14;
-        const double maxFontSize = 48;
+        const double maxFontSize = 42;
         if (maxScore <= 0) return minFontSize;
         return minFontSize + ((double)score / maxScore) * (maxFontSize - minFontSize);
     }
@@ -299,9 +725,24 @@
         return minOpacity + ((double)score / maxScore) * (maxOpacity - minOpacity);
     }
 
-    private static string WordStyle(int score, int maxScore) =>
-        FormattableString.Invariant(
-            $"font-size:{WordSize(score, maxScore):0.#}px; opacity:{WordOpacity(score, maxScore):0.###}");
+    private static string FormatNumber(int value) =>
+        value.ToString("N0", CultureInfo.InvariantCulture);
+
+    private static string Plural(int count, string singular, string plural) =>
+        count == 1 ? singular : plural;
+
+    private void ClearResults()
+    {
+        rawFrequencies = [];
+        groupedWords = [];
+        maxRawScore = 1;
+        maxGroupedScore = 1;
+        errorResult = null;
+        errorRows = [];
+        clusters = [];
+        clusterByMember.Clear();
+        selectedCluster = null;
+    }
 
     public void Dispose()
     {
@@ -327,4 +768,25 @@
 
         return assembly.GetName().Version?.ToString(3) ?? "unknown";
     }
+
+    private sealed record ClusterInfo(
+        int Index,
+        int Hue,
+        string Representative,
+        IReadOnlyList<string> Members,
+        int Count,
+        IReadOnlyDictionary<string, int> DistanceByMember)
+    {
+        public int Forms => Members.Count;
+    }
+
+    private sealed record ErrorRow(
+        string Text,
+        string? SuggestedText,
+        int Distance,
+        bool IsCertain,
+        int Occurrences,
+        IReadOnlyList<int> Lines,
+        int? ClusterIndex,
+        int? Hue);
 }

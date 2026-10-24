@@ -1,5 +1,63 @@
-html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+:root {
+    color-scheme: light;
+    --fs-bg: #f6f8fb;
+    --fs-surface: #ffffff;
+    --fs-surface-2: #eef2f8;
+    --fs-text: #1f2937;
+    --fs-muted: #5b6573;
+    --fs-border: #e3e8f0;
+    --fs-accent: #2563eb;
+    --fs-accent-soft: #e8efff;
+    --fs-on-accent: #ffffff;
+    --fs-warning: #b45309;
+    --fs-warning-bg: #fff7e6;
+    --fs-success: #047857;
+    --fs-success-bg: #e9f9f1;
+    --fs-radius: 14px;
+    --fs-shadow: 0 1px 3px rgb(16 24 40 / 0.07), 0 10px 26px -18px rgb(16 24 40 / 0.28);
+
+    --bs-body-bg: var(--fs-surface);
+    --bs-body-color: var(--fs-text);
+    --bs-secondary-color: var(--fs-muted);
+    --bs-tertiary-bg: var(--fs-surface-2);
+    --bs-border-color: var(--fs-border);
+    --bs-emphasis-color: var(--fs-text);
+    --bs-link-color: var(--fs-accent);
+    --bs-link-hover-color: #1d4ed8;
+    --bs-code-color: var(--fs-accent);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        color-scheme: dark;
+        --fs-bg: #0f141b;
+        --fs-surface: #161d27;
+        --fs-surface-2: #1c2532;
+        --fs-text: #e6ebf2;
+        --fs-muted: #9aa6b6;
+        --fs-border: #2a3342;
+        --fs-accent: #7fb0ff;
+        --fs-accent-soft: #1b2b45;
+        --fs-on-accent: #0b1220;
+        --fs-warning: #fbbf24;
+        --fs-warning-bg: #2b2413;
+        --fs-success: #34d399;
+        --fs-success-bg: #12271f;
+        --fs-shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 14px 32px -22px rgb(0 0 0 / 0.9);
+
+        --bs-link-hover-color: #a6c8ff;
+    }
+}
+
+html,
+body {
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+body {
+    background: var(--fs-bg);
+    color: var(--fs-text);
+    min-height: 100vh;
 }
 
 h1:focus {
@@ -7,11 +65,23 @@ h1:focus {
 }
 
 a {
-    color: #0071c1;
+    color: var(--fs-accent);
+}
+
+::selection {
+    background: var(--fs-accent);
+    color: var(--fs-on-accent);
 }
 
 .form-control:focus {
-    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+    border-color: var(--fs-accent);
+    box-shadow: 0 0 0 0.2rem rgb(37 99 235 / 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+    .form-control:focus {
+        box-shadow: 0 0 0 0.2rem rgb(127 176 255 / 0.22);
+    }
 }
 
 .content {

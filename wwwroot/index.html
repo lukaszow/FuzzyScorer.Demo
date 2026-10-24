@@ -8,14 +8,14 @@
     <!-- frame-ancestors and other header-only directives must be set by the hosting layer. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Blazor WebAssembly demo of FuzzyScorer: live Levenshtein-distance word clustering and typo detection." />
-    <title>FuzzyScorer.Demo</title>
+    <title>FuzzyScorer — Live Word Cloud Repair</title>
     <base href="/" />
     <link rel="preload" id="webassembly" />
     <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="css/app.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link href="FuzzyScorer.Demo.styles.css" rel="stylesheet" />
-    <script type="importmap"></script>
+    <!-- No inline import map: the generated one is an inline script and would be blocked by script-src. -->
 </head>
 
 <body>
