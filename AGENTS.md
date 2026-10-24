@@ -21,5 +21,5 @@ Blazor WebAssembly demo app for the `FuzzyScorer` NuGet package (Levenshtein-dis
 - Injected: `global::FuzzyScorer.IFuzzyScorer.ScoreAsync(text, sensitivity, token)`.
 
 ## Structure
-- `Pages/Home.razor` (`@page "/"`) is the only page (raw vs. clustered word clouds + error log). Recalculation is async; keep new handlers awaited so the error log stays in sync.
-- Bootstrap is vendored under `wwwroot/lib/` and loaded with `OverrideHtmlAssetPlaceholders=true`; don't switch to a CDN.
+- `Pages/Home.razor` (`@page "/"`) is the only page (raw vs. clustered word clouds + error log). Recalculation is async, debounced by 300 ms, and cancelled via `CancellationTokenSource`; keep new handlers awaited so the error log stays in sync. The interactive edit distance is capped at 10 (library limit is 50).
+- Bootstrap is vendored under `wwwroot/lib/` (only `dist/css/bootstrap.min.css` is kept) and loaded with `OverrideHtmlAssetPlaceholders=true`; don't switch to a CDN.

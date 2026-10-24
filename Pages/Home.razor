@@ -1,5 +1,7 @@
 ﻿@page "/"
+@using System.Globalization
 @using System.Reflection
+@implements IDisposable
 
 <PageTitle>FuzzyScorer — Live Word Cloud Repair</PageTitle>
 
@@ -21,26 +23,40 @@
         <textarea id="inputText"
                   class="form-control"
                   rows="6"
+                  maxlength="@MaxInputLength"
+                  aria-describedby="inputLimits"
                   @bind="InputText"
                   @bind:event="oninput"
                   @bind:after="OnInputChanged"></textarea>
+        <div id="inputLimits" class="form-text">
+            @InputText.Length.ToString("N0", CultureInfo.InvariantCulture) /
+            @MaxInputLength.ToString("N0", CultureInfo.InvariantCulture) characters
+            · library limits: @MaxWordsPerText.ToString("N0", CultureInfo.InvariantCulture) words,
+            @MaxWordLength characters per word
+        </div>
     </div>
 
     <div class="slider-section">
-        <label class="form-label">
+        <label class="form-label" for="maxEditDistance">
             Max edit distance: <strong>@maxEditDistance</strong>
         </label>
-        <input type="range"
+        <input id="maxEditDistance"
+               type="range"
                class="form-range"
                min="0"
-               max="@MaxEditDistanceLimit"
+               max="@MaxInteractiveEditDistance"
                step="1"
+               aria-valuetext="@($"{maxEditDistance} of {MaxInteractiveEditDistance}")"
                @bind="maxEditDistance"
                @bind:event="oninput"
                @bind:after="OnSliderChanged" />
         <div class="slider-labels">
             <span>0 (exact only)</span>
-            <span>@MaxEditDistanceLimit (very loose)</span>
+            <span>@MaxInteractiveEditDistance (very loose)</span>
+        </div>
+        <div class="form-text">
+            The library supports 0–@MaxEditDistanceLimit; this demo caps the slider at
+            @MaxInteractiveEditDistance to keep live analysis responsive.
         </div>
     </div>
 
@@ -52,7 +68,7 @@
                 @foreach (var word in rawFrequencies)
                 {
                     <span class="word-tag"
-                          style="font-size: @WordSize(word.Count, maxRawScore)px; opacity: @WordOpacity(word.Count, maxRawScore)">
+                          style="@WordStyle(word.Count, maxRawScore)">
                         @word.Text
                         <small>(@word.Count)</small>
                     </span>
@@ -67,7 +83,7 @@
                 @foreach (var word in groupedWords)
                 {
                     <span class="word-tag grouped"
-                          style="font-size: @WordSize(word.Count, maxGroupedScore)px; opacity: @WordOpacity(word.Count, maxGroupedScore)">
+                          style="@WordStyle(word.Count, maxGroupedScore)">
                         @word.Text
                         <small>(@word.Count)</small>
                     </span>
@@ -76,18 +92,26 @@
         </div>
     </div>
 
-    <div class="errors-section">
+    <div class="errors-section" aria-live="polite" aria-busy="@(isCalculating ? "true" : "false")">
         <h2>Detected Errors Log</h2>
         <p class="panel-subtitle">
-            IFuzzyScorer.ScoreAsync (sensitivity: @(Math.Round(maxEditDistance / (double)MaxEditDistanceLimit, 3)))
+            IFuzzyScorer.ScoreAsync (sensitivity: @Sensitivity.ToString("0.###", CultureInfo.InvariantCulture))
+            @if (isCalculating)
+            {
+                <span class="calculating">— calculating…</span>
+            }
         </p>
         @if (errorMessage is not null)
         {
-            <div class="alert alert-warning">@errorMessage</div>
+            <div class="alert alert-warning" role="alert">@errorMessage</div>
         }
-        else if (errorResult == null || errorResult.Errors.Count == 0)
+        else if (errorResult is null)
         {
-            <div class="alert alert-info">No errors detected — all words match their clusters.</div>
+            <div class="alert alert-info" role="status">Analyzing…</div>
+        }
+        else if (errorResult.Errors.Count == 0)
+        {
+            <div class="alert alert-info" role="status">No errors detected — all words match their clusters.</div>
         }
         else
         {
@@ -126,7 +150,11 @@
     private global::FuzzyScorer.IFuzzyScorer Scorer { get; set; } = default!;
 
     private const int MaxEditDistanceLimit = global::FuzzyScorer.WordScorer.MaxEditDistanceLimit;
+    private const int MaxInteractiveEditDistance = 10;
     private const int MaxInputLength = global::FuzzyScorer.WordScorer.MaxInputLength;
+    private const int MaxWordsPerText = global::FuzzyScorer.WordScorer.MaxWordsPerText;
+    private const int MaxWordLength = global::FuzzyScorer.WordScorer.MaxWordLength;
+    private const int DebounceMilliseconds = 300;
 
     private static readonly string LibraryVersion = ResolveLibraryVersion();
     private static readonly string NuGetUrl =
@@ -143,6 +171,8 @@
     private int maxRawScore = 1;
     private int maxGroupedScore = 1;
 
+    private bool isCalculating;
+    private int recalcGeneration;
     private CancellationTokenSource? recalcCts;
 
     private const string SampleData =
@@ -155,51 +185,76 @@
         Tiger TIGER TlGER tigerr
         """;
 
-    protected override async Task OnInitializedAsync()
-    {
-        await RecalculateAllAsync();
-    }
+    private double Sensitivity => maxEditDistance / (double)MaxEditDistanceLimit;
 
-    private async Task OnInputChanged()
-    {
-        await RecalculateAllAsync();
-    }
+    protected override Task OnInitializedAsync() => RecalculateAllAsync(debounce: false);
 
-    private async Task OnSliderChanged()
-    {
-        await RecalculateAllAsync();
-    }
+    private Task OnInputChanged() => RecalculateAllAsync();
 
-    private async Task RecalculateAllAsync()
+    private Task OnSliderChanged() => RecalculateAllAsync();
+
+    private async Task RecalculateAllAsync(bool debounce = true)
     {
+        var generation = ++recalcGeneration;
+
         recalcCts?.Cancel();
         recalcCts?.Dispose();
         recalcCts = new CancellationTokenSource();
         var token = recalcCts.Token;
 
+        isCalculating = true;
         errorMessage = null;
-
-        if (InputText.Length > MaxInputLength)
-        {
-            errorMessage = $"Input is too long ({InputText.Length:N0} characters). The limit is {MaxInputLength:N0}.";
-            rawFrequencies = [];
-            groupedWords = [];
-            errorResult = null;
-            return;
-        }
 
         try
         {
+            if (debounce)
+            {
+                await Task.Delay(DebounceMilliseconds, token);
+            }
+
+            if (generation != recalcGeneration)
+            {
+                return;
+            }
+
+            if (InputText.Length > MaxInputLength)
+            {
+                errorMessage =
+                    $"Input is too long ({InputText.Length:N0} characters). " +
+                    $"The limit is {MaxInputLength:N0}.";
+                ClearResults();
+                return;
+            }
+
             RecalculateRaw(token);
             RecalculateGrouped(token);
-            await RecalculateErrorsAsync(token);
-        }
-        catch (ArgumentException ex)
-        {
-            errorMessage = ex.Message;
+
+            var result = await Scorer.ScoreAsync(InputText, Sensitivity, token);
+
+            // A newer edit or slider event may have started while ScoreAsync was running.
+            if (generation == recalcGeneration)
+            {
+                errorResult = result;
+            }
         }
         catch (OperationCanceledException)
         {
+            // A newer edit/slider event superseded this calculation.
+        }
+        catch (ArgumentException ex)
+        {
+            if (generation == recalcGeneration)
+            {
+                errorMessage = $"FuzzyScorer rejected the input: {ex.Message}";
+                ClearResults();
+            }
+        }
+        finally
+        {
+            if (generation == recalcGeneration)
+            {
+                isCalculating = false;
+            }
         }
     }
 
@@ -219,10 +274,13 @@
             : 1;
     }
 
-    private async Task RecalculateErrorsAsync(CancellationToken token)
+    private void ClearResults()
     {
-        var sensitivity = maxEditDistance / (double)MaxEditDistanceLimit;
-        errorResult = await Scorer.ScoreAsync(InputText, sensitivity, token);
+        rawFrequencies = [];
+        groupedWords = [];
+        maxRawScore = 1;
+        maxGroupedScore = 1;
+        errorResult = null;
     }
 
     private static double WordSize(int score, int maxScore)
@@ -230,15 +288,26 @@
         const double minFontSize = 14;
         const double maxFontSize = 48;
         if (maxScore <= 0) return minFontSize;
-        return minFontSize + (score / maxScore) * (maxFontSize - minFontSize);
+        return minFontSize + ((double)score / maxScore) * (maxFontSize - minFontSize);
     }
 
     private static double WordOpacity(int score, int maxScore)
     {
-        const double minOpacity = 0.45;
+        const double minOpacity = 0.85;
         const double maxOpacity = 1.0;
         if (maxScore <= 0) return minOpacity;
-        return minOpacity + (score / maxScore) * (maxOpacity - minOpacity);
+        return minOpacity + ((double)score / maxScore) * (maxOpacity - minOpacity);
+    }
+
+    private static string WordStyle(int score, int maxScore) =>
+        FormattableString.Invariant(
+            $"font-size:{WordSize(score, maxScore):0.#}px; opacity:{WordOpacity(score, maxScore):0.###}");
+
+    public void Dispose()
+    {
+        recalcGeneration++;
+        recalcCts?.Cancel();
+        recalcCts?.Dispose();
     }
 
     private static string ResolveLibraryVersion()

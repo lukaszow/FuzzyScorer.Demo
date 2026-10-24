@@ -125,12 +125,17 @@
 
 .word-tag small {
     font-size: 0.6em;
-    color: #888;
+    color: #5c636a;
     margin-left: 2px;
 }
 
 .word-tag.grouped {
-    color: #1b6ec2;
+    color: #155a9e;
+}
+
+.calculating {
+    color: #6c757d;
+    font-style: italic;
 }
 
 .errors-section {
