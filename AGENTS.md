@@ -8,7 +8,15 @@ Blazor WebAssembly demo app for the `FuzzyScorer` NuGet package (Levenshtein-dis
 - **Build (matches CI)**: `dotnet build --configuration Release -warnaserror`
 - **After bumping the `FuzzyScorer` package version**: delete `bin/` and `obj/` before building. NuGet-cached DLL timestamps can be older than the generated WebCIL asset, leaving a stale `_framework/FuzzyScorer.*.wasm` that fails at runtime with `MissingMethodException`.
 - No solution file, no tests. CI (`.github/workflows/build.yml`) runs the Release build on `main`.
-- Dependabot (`.github/dependabot.yml`) keeps NuGet + GitHub Actions updated.
+- Dependabot (`.github/dependabot.yml`) keeps NuGet, GitHub Actions, and the `tools/` npm packages updated.
+
+## Demo GIF
+- `demo.gif` (repo root, next to `screenshot.png`) is generated from the running app by `tools/record-demo.mjs`:
+  `cd tools && npm ci && node record-demo.mjs`
+- Node 18+ and a locally installed Chrome are required; the script starts `dotnet run` when port 5231 is closed and stops it afterwards. Pass `--no-server` to reuse an already running instance.
+- The script drives the real UI (Exact/Typical typos/Loose presets, the `Apple` word, `Show all clusters`) and records the header-through-clouds region at 1040 px, so selector or layout changes in `Pages/Home.razor` can break it.
+- Frames come from the Chrome DevTools screencast and are GIF-encoded with a shared palette plus per-frame transparency, so only changed pixels are stored. Defaults: 12 fps, 256 colors, ~1 MB; tune with `--width`, `--fps`, `--colors`, and keep the file under ~1.5 MB.
+- Regenerate it when the UI changes noticeably; `--debug-dir <dir>` dumps the captured frames as PNGs for inspection.
 
 ## Key details
 - Single project. `Program.cs` is the entrypoint; `FuzzyScorer` is DI-registered there (`Program.cs:10`).

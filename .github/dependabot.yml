@@ -12,3 +12,11 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+  - package-ecosystem: "npm"
+    directory: "/tools"
+    schedule:
+      interval: "weekly"
+    groups:
+      demo-tools:
+        patterns:
+          - "*"

@@ -8,6 +8,9 @@ obj/
 .idea/
 nupkgs/
 
+# Node tooling for the demo GIF recorder
+tools/node_modules/
+
 # OS metadata
 .DS_Store
 **/.DS_Store

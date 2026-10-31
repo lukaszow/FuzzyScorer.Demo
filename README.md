@@ -8,6 +8,10 @@ Targets **.NET 10.0**.
 
 ![FuzzyScorer Demo Screenshot](screenshot.png)
 
+![FuzzyScorer demo: exact matching, cluster isolation, and loose matching](demo.gif)
+
+*Live: switching the edit distance, isolating the Apple cluster, and comparing loose matching.*
+
 ## Run
 
 ```bash
